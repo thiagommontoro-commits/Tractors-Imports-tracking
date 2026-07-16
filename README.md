@@ -26,7 +26,7 @@ Este repositório está configurado para se atualizar sozinho. O processo é o s
     - **Manual:** Pode ser acionada a qualquer momento pela aba "Actions" do GitHub.
 2.  **Execução:** Um servidor do GitHub executa o script `Deixa.py`.
 3.  **Geração de Arquivos:** O script extrai os dados mais recentes da API, salva o arquivo `Imports database_ANO-MES-DIA.xlsx` e gera o `dashboard_importacoes.html`.
-4.  **Commit:** Se houver qualquer alteração nos dados, o robô do GitHub salva (faz um "commit") os arquivos atualizados de volta no repositório.
+4.  **Commit:** Se houver qualquer alteração nos dados, o robô do GitHub salva (faz um "commit") os arquivos atualizados (`index.html` e o `.xlsx`) de volta no repositório.
 
 Isso garante que o dashboard e a base de dados estejam sempre sincronizados com a última versão do código e com os dados mais recentes da API.
 
@@ -42,6 +42,7 @@ Você pode ver o dashboard mais recente diretamente pelo link do GitHub Pages do
 2.  Em `Branch`, selecione `main` e a pasta `/ (root)`.
 3.  Clique em `Save`.
 4.  Após alguns minutos, seu dashboard estará disponível no link fornecido (algo como `https://SEU-USUARIO.github.io/ComexStat/dashboard_importacoes.html`).
+    - **Nota:** Com a alteração para `index.html`, o link principal `https://SEU-USUARIO.github.io/ComexStat/` já irá carregar o dashboard.
 
 ### Rodando o Projeto Localmente
 
@@ -70,7 +71,7 @@ Você pode ver o dashboard mais recente diretamente pelo link do GitHub Pages do
 
 5.  **Veja o resultado:**
     -   O arquivo `Imports database_ANO-MES-DIA.xlsx` será criado/atualizado.
-    -   O arquivo `dashboard_importacoes.html` será gerado. Abra-o em seu navegador para ver os gráficos.
+    -   O arquivo `index.html` será gerado. Abra-o em seu navegador para ver os gráficos.
 
 ---
 
