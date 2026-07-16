@@ -3,6 +3,7 @@ import plotly.graph_objects as go
 import requests
 import os
 from datetime import datetime
+import glob
 import json
 import time
 
@@ -337,23 +338,41 @@ def main():
         "87019100", "87019200", "87019300", "87019410", "87019490", 
         "87019510", "87019590"
     ]
-    anos_desejados = [2023, 2024] # Anos para buscar na API
+    anos_desejados = [2023, 2024]
+    df_para_usar = None
 
-    # 1. Extrair dados frescos da API
+    # 1. Tenta extrair dados frescos da API
+    print("--- ETAPA 1: TENTANDO EXTRAIR DADOS FRESCOS DA API ---")
     df_fresco = extrair_dados_comex(anos=anos_desejados, ncm_codes=codigos_ncm_tratores)
 
-    if df_fresco is None or df_fresco.empty:
-        print("\n❌ NENHUM DADO FOI EXTRAÍDO. Abortando a geração do dashboard.")
-        return
+    if df_fresco is not None and not df_fresco.empty:
+        print("✅ Dados frescos extraídos com sucesso da API.")
+        df_para_usar = df_fresco
+        hoje = datetime.now().strftime("%Y-%m-%d")
+        nome_arquivo_excel = f"Imports database_{hoje}.xlsx"
+        print(f"\n💾 Salvando dados frescos em: {nome_arquivo_excel}")
+        df_para_usar.to_excel(nome_arquivo_excel, index=False)
+    else:
+        print("\n⚠️ Falha ao extrair dados da API. Tentando usar dados locais (fallback)...")
+        search_pattern = os.path.join(".", "Imports database_*.xlsx")
+        lista_arquivos = glob.glob(search_pattern)
+        
+        if not lista_arquivos:
+            print("❌ NENHUM DADO FRESCO OU LOCAL ENCONTRADO. Abortando a geração do dashboard.")
+            return
+        
+        caminho_arquivo_antigo = max(lista_arquivos, key=os.path.getctime)
+        print(f"📊 Usando dados locais do arquivo: {os.path.basename(caminho_arquivo_antigo)}")
+        try:
+            df_para_usar = pd.read_excel(caminho_arquivo_antigo)
+        except Exception as e:
+            print(f"❌ ERRO: Falha ao ler o arquivo Excel local. Causa: {e}")
+            return
 
-    # 2. Salvar os dados frescos em um arquivo Excel
-    hoje = datetime.now().strftime("%Y-%m-%d")
-    nome_arquivo_excel = f"Imports database_{hoje}.xlsx"
-    print(f"\n💾 Salvando dados frescos em: {nome_arquivo_excel}")
-    df_fresco.to_excel(nome_arquivo_excel, index=False)
-
-    # 3. Gerar o dashboard usando os dados frescos
-    gerar_dashboard(df_fresco)
+    if df_para_usar is not None and not df_para_usar.empty:
+        gerar_dashboard(df_para_usar)
+    else:
+        print("❌ Nenhum dado válido para gerar o dashboard.")
 
 if __name__ == "__main__":
     main()
