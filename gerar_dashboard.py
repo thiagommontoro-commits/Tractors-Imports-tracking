@@ -569,7 +569,7 @@ def gerar_dashboard(df: pd.DataFrame = None):
     </html>
     '''
 
-    dashboard_path = os.path.join(project_path, "dashboard_importacoes.html")
+    dashboard_path = os.path.join(project_path, "index.html")
     with open(dashboard_path, 'w', encoding='utf-8') as f:
         f.write(html_string)
 
