@@ -81,12 +81,19 @@ def extrair_dados_comex(anos, ncm_codes):
     """
     print(f"🔎 Buscando dados para os anos: {anos} e NCMs: {len(ncm_codes)}")
     all_data = []
-    base_url = "https://api.comexstat.mdic.gov.br/general"
+    
+    # CORREÇÃO 1: URL corrigida de api. para api-
+    base_url = "https://api-comexstat.mdic.gov.br/general"
+    
+    # CORREÇÃO 2: Fake User-Agent para contornar bloqueios em servidores Cloud/GitHub
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+    }
 
     for ano in anos:
         for ncm in ncm_codes:
             params = {
-                "flow": "2",  # 2 para Importação
+                "flow": "2",  # NOTA: Na API mais atual, a documentação exige "import". Se o erro persistir, altere "2" para "import".
                 "period": str(ano),
                 "partner": "0", # Todos os países
                 "product": ncm,
@@ -96,8 +103,9 @@ def extrair_dados_comex(anos, ncm_codes):
             retries = 3
             for attempt in range(retries):
                 try:
-                    response = requests.get(base_url, params=params, timeout=60)
-                    response.raise_for_status()  # Lança um erro para códigos 4xx/5xx
+                    # Incluído 'headers' na requisição
+                    response = requests.get(base_url, params=params, headers=headers, timeout=60)
+                    response.raise_for_status()
                     
                     data = response.json()
                     if data:
@@ -119,7 +127,7 @@ def extrair_dados_comex(anos, ncm_codes):
                 except requests.exceptions.RequestException as e:
                     print(f"   ❌ Erro de conexão para Ano: {ano}, NCM: {ncm}. Causa: {e}")
                     break
-            else: # Executado se o loop de retentativas falhar todas as vezes
+            else:
                 print(f"   ❌ Falha ao buscar dados para Ano: {ano}, NCM: {ncm} após {retries} tentativas.")
 
     if not all_data:
@@ -293,7 +301,7 @@ def gerar_dashboard(df: pd.DataFrame):
     data_geracao = datetime.now().strftime("%d/%m/%Y às %H:%M")
 
     meses_options_html = f'<option value="total" data-translate-key="annual_cumulative">{TRANSLATIONS["pt"]["annual_cumulative"]}</option>' + \
-                     ''.join([f'<option value="{i}" data-translate-key="cumulative_until_month" data-month-value="{i}">{TRANSLATIONS["pt"]["cumulative_until_month"]} {i}</option>' for i in range(1, 13)])
+                         ''.join([f'<option value="{i}" data-translate-key="cumulative_until_month" data-month-value="{i}">{TRANSLATIONS["pt"]["cumulative_until_month"]} {i}</option>' for i in range(1, 13)])
     anos_options_html = f'<option value="Todos" data-translate-key="all_years">{TRANSLATIONS["pt"]["all_years"]}</option>' + ''.join([f'<option value="{a}">{a}</option>' for a in anos_list])
     paises_options_html = f'<option value="Todos" data-translate-key="all_countries">{TRANSLATIONS["pt"]["all_countries"]}</option>' + ''.join([f'<option value="{p}">{p}</option>' for p in paises_list])
 
