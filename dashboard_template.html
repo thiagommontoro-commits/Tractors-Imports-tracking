@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title data-translate-key="dashboard_title">{translations_pt_json[dashboard_title]}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        :root {{ --header-bg: #1e293b; --agco-red: #CC0000; --bg-page: #f4f7f6; --bg-card: #ffffff; --text-main: #2c3e50; --text-muted: #6c757d; --border-light: #e9ecef; }}
+        body {{ font-family: 'Inter', sans-serif; background-color: var(--bg-page); margin: 0; padding: 20px; color: var(--text-main); }}
+        .dashboard-container {{ background-color: var(--bg-card); border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05); max-width: 1400px; margin: 0 auto; overflow: hidden; }}
+        .header {{ display: flex; justify-content: space-between; align-items: center; background-color: var(--header-bg); padding: 20px 30px; border-bottom: 4px solid var(--agco-red); }}
+        .header-controls {{ display: flex; align-items: center; gap: 25px; }}
+        .lang-switcher {{ display: flex; gap: 5px; }}
+        .lang-btn {{ background-color: rgba(255,255,255,0.1); color: #fff; border: 1px solid #fff; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8em; font-weight: 500; transition: background-color 0.2s, color 0.2s; }}
+        .lang-btn:hover {{ background-color: rgba(255,255,255,0.2); }}
+        .lang-btn.active {{ background-color: #fff; color: var(--header-bg); font-weight: 700; }}
+        .title-area h1 {{ margin: 0 0 5px 0; font-size: 1.8em; font-weight: 700; color: #ffffff; }}
+        .title-area p {{ color: #94a3b8; margin: 0; font-size: 1em; }}
+        .dev-info {{ text-align: right; color: #94a3b8; font-size: 0.9em; }}
+        .dev-info strong {{ color: #ffffff; font-size: 1.1em; display: block; margin-top: 4px; }}
+        .content-area {{ padding: 25px 30px 30px 30px; }}
+        .info-strip {{ display: flex; flex-wrap: wrap; justify-content: space-between; background-color: #f8f9fa; border-left: 5px solid var(--agco-red); padding: 15px 20px; border-radius: 0 8px 8px 0; margin-bottom: 30px; font-size: 0.95em; color: #495057; gap: 15px; }}
+        .global-filter-container {{ margin-bottom: 30px; background-color: #fff; padding: 15px 20px; border-radius: 8px; border: 1px solid var(--border-light); display: flex; align-items: center; gap: 15px; }}
+        .global-filter-container label {{ font-weight: 600; font-size: 1em; color: var(--text-main); }}
+        select.modern-select {{ font-family: 'Inter', sans-serif; font-size: 0.95em; padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; background-color: #fff; cursor: pointer; min-width: 150px; outline: none; transition: border-color 0.2s; }}
+        select.modern-select:focus {{ border-color: var(--agco-red); }}
+        .kpi-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 35px; }}
+        .kpi-card {{ background: var(--bg-card); border: 1px solid var(--border-light); border-left: 4px solid var(--agco-red); border-radius: 8px; padding: 15px 20px; text-align: left; transition: box-shadow 0.2s ease; }}
+        .kpi-title {{ font-size: 0.8em; text-transform: uppercase; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; }}
+        .kpi-value {{ font-size: 1.8em; font-weight: 700; color: var(--text-main); line-height: 1.2; }}
+        .chart-container {{ background-color: var(--bg-card); border: 1px solid var(--border-light); border-radius: 10px; padding: 20px; margin-top: 15px; position: relative; }}
+        .table-header-area {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }}
+        .table-title {{ font-size: 1.2em; font-weight: 600; margin: 0; color: var(--text-main); }}
+        .btn-group {{ display: flex; gap: 5px; flex-wrap: wrap; }}
+        .metric-btn {{ padding: 6px 15px; border: 1px solid #ccc; background: #fff; border-radius: 4px; cursor: pointer; font-size: 0.9em; }}
+        .metric-btn.active {{ background: var(--header-bg); color: #fff; border-color: var(--header-bg); font-weight: bold; }}
+        .custom-table {{ width: 100%; border-collapse: collapse; font-size: 14px; text-align: center; }}
+        .custom-table th {{ background-color: var(--header-bg); color: #fff; padding: 12px 10px; border: 1px solid #334155; }}
+        .custom-table th:first-child {{ text-align: left; }}
+        .custom-table td {{ padding: 10px; border-bottom: 1px solid var(--border-light); }}
+        .custom-table td:first-child {{ text-align: left; font-weight: 500; }}
+        .custom-table tbody tr:nth-child(even) {{ background-color: #f8fafc; }}
+        .custom-table tbody tr:hover {{ background-color: #f1f5f9; }}
+        .filters-inline {{ display: flex; flex-wrap: wrap; gap: 15px; background: #f8f9fa; padding: 15px; border-radius: 8px; justify-content: center; margin-bottom: 15px; align-items: center; border-left: 4px solid var(--agco-red); }}
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <div class="title-area">
+                <h1 data-translate-key="dashboard_h1">{dashboard_h1}</h1>
+                <p data-translate-key="dashboard_subtitle">{dashboard_subtitle}</p>
+            </div>
+            <div class="header-controls">
+                <div class="lang-switcher">
+                    <button class="lang-btn active" data-lang="pt">PT</button>
+                    <button class="lang-btn" data-lang="en">EN</button>
+                </div>
+                <div class="dev-info"><span data-translate-key="developed_by">{developed_by}</span><br><strong>Reporting & Analytics AGCO</strong></div>
+            </div>
+        </div>
+        <div class="content-area">
+            <div class="info-strip">
+                <div class="info-item"><strong><span data-translate-key="data_source">{data_source}</span></strong> API Comex Stat (MDIC)</div>
+                <div class="info-item"><strong><span data-translate-key="last_update">{last_update}</span></strong> {data_geracao}</div>
+                <div class="info-item"><strong><span data-translate-key="analyzed_period">{analyzed_period}</span></strong> {ano_min} - {ano_max}</div>
+            </div>
+
+            <div class="global-filter-container">
+                <label for="global-time-filter" data-translate-key="global_filter_label">{global_filter_label}</label>
+                <select id="global-time-filter" class="modern-select">
+                    {meses_options_html}
+                </select>
+            </div>
+
+            <div class="kpi-grid">
+                <div class="kpi-card"><div class="kpi-title" data-translate-key="kpi_total_value">{kpi_total_value}</div><div class="kpi-value" id="kpi-fob-value">US$ 0</div></div>
+                <div class="kpi-card"><div class="kpi-title" data-translate-key="kpi_total_qty">{kpi_total_qty}</div><div class="kpi-value" id="kpi-qty-value">0</div></div>
+                <div class="kpi-card"><div class="kpi-title" data-translate-key="kpi_origin_countries">{kpi_origin_countries}</div><div class="kpi-value" id="kpi-paises-value">0</div></div>
+            </div>
+
+            <div class="chart-container">{graph1_div}</div>
+            
+            <div class="chart-container">
+                <div class="table-header-area">
+                    <h2 class="table-title" data-translate-key="table_title">{table_title}</h2>
+                    <div class="btn-group" id="table-btn-group">
+                        <button class="metric-btn active" data-metric="Valor US$ FOB" data-translate-key="fob_value">{fob_value}</button>
+                        <button class="metric-btn" data-metric="Valor US$ CIF" data-translate-key="cif_value">{cif_value}</button>
+                        <button class="metric-btn" data-metric="Quantidade Estatística" data-translate-key="quantity">{quantity}</button>
+                    </div>
+                </div>
+                <div id="html_table_container"></div>
+            </div>
+
+            <div class="chart-container">
+                <div class="table-header-area">
+                    <h2 class="table-title" data-translate-key="donut_title">{donut_title}</h2>
+                    <div class="btn-group" id="donut-metric-group">
+                        <button class="metric-btn donut-metric-btn active" data-metric="fob" data-translate-key="fob_value">{fob_value}</button>
+                        <button class="metric-btn donut-metric-btn" data-metric="cif" data-translate-key="cif_value">{cif_value}</button>
+                        <button class="metric-btn donut-metric-btn" data-metric="qty" data-translate-key="quantity">{quantity}</button>
+                    </div>
+                </div>
+                
+                <div class="filters-inline">
+                    <label style="font-size: 0.95em; font-weight: 600;" data-translate-key="donut_filter_label">{donut_filter_label}</label>
+                    <div>
+                        <select id="donut-mes" class="modern-select">
+                            {meses_options_html}
+                        </select>
+                    </div>
+                    <div>
+                        <select id="donut-ano" class="modern-select">
+                            {anos_options_html}
+                        </select>
+                    </div>
+                    <div>
+                        <select id="donut-pais" class="modern-select">
+                            {paises_options_html}
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="chart_hp_div" style="width: 100%; height: 450px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const masterData = {master_data_json};
+        const anosColumns = {anos_columns_json};
+        const translations = {translations_json};
+        let currentLang = 'pt';
+        
+        const filterSelect = document.getElementById('global-time-filter');
+        const donutMesSelect = document.getElementById('donut-mes');
+        const donutAnoSelect = document.getElementById('donut-ano');
+        const donutPaisSelect = document.getElementById('donut-pais');
+        
+        const chart1Id = 'chart1_div';
+        const chartHpId = 'chart_hp_div';
+        const tableContainer = document.getElementById('html_table_container');
+        
+        let currentTableMetric = 'Valor US$ FOB';
+        let currentDonutMetric = 'fob';
+
+        function translatePage(lang) {{
+            if (!translations[lang]) return;
+            currentLang = lang;
+            const langDict = translations[lang];
+
+            document.querySelectorAll('[data-translate-key]').forEach(el => {{
+                const key = el.getAttribute('data-translate-key');
+                if (langDict[key]) {{
+                    if (el.hasAttribute('data-month-value')) {{
+                        el.textContent = `${{langDict[key]}} ${{el.getAttribute('data-month-value')}}`;
+                    }} else {{
+                        el.textContent = langDict[key];
+                    }}
+                }}
+            }});
+
+            const currentFilterValue = filterSelect.value;
+            const currentData = masterData[currentFilterValue];
+            if (!currentData) return;
+
+            const chart1Layout = JSON.parse(JSON.stringify(currentData.chart1.layout));
+            chart1Layout.title.text = langDict.chart1_title;
+            chart1Layout.updatemenus[0].buttons[0].label = langDict.fob_value;
+            chart1Layout.updatemenus[0].buttons[0].args[1]['yaxis.title'] = langDict.total_fob_value;
+            chart1Layout.updatemenus[0].buttons[1].label = langDict.cif_value;
+            chart1Layout.updatemenus[0].buttons[1].args[1]['yaxis.title'] = langDict.total_cif_value;
+            chart1Layout.updatemenus[0].buttons[2].label = langDict.quantity;
+            chart1Layout.updatemenus[0].buttons[2].args[1]['yaxis.title'] = langDict.total_quantity_axis;
+            
+            const visibleTraceIndex = currentData.chart1.data.findIndex(trace => trace.visible === true);
+            const yaxisTitleKey = visibleTraceIndex === 0 ? 'total_fob_value' : (visibleTraceIndex === 1 ? 'total_cif_value' : 'total_quantity_axis');
+            chart1Layout.yaxis.title.text = langDict[yaxisTitleKey] || langDict.total_fob_value;
+
+            Plotly.react(chart1Id, currentData.chart1.data, chart1Layout);
+            renderHtmlTable(currentData);
+            updateDonut();
+        }}
+
+        function renderHtmlTable(newData) {{
+            const dataBlock = newData.chart3_table[currentTableMetric];
+            const countries = dataBlock[0]; 
+            
+            if (!countries || countries.length === 0) {{
+                tableContainer.innerHTML = `<p style='text-align:center; padding: 20px; color:#6c757d;'>${{translations[currentLang].no_data_period}}</p>`;
+                return;
+            }}
+
+            let html = `<table class="custom-table"><thead><tr><th>${{translations[currentLang].origin_country_header}}</th>`;
+            anosColumns.forEach(ano => html += `<th>${{ano}}</th>`);
+            html += '</tr></thead><tbody>';
+
+            for (let i = 0; i < countries.length; i++) {{
+                html += `<tr><td>${{countries[i]}}</td>`;
+                for (let j = 1; j <= anosColumns.length; j++) {{
+                    html += `<td>${{dataBlock[j][i]}}</td>`;
+                }}
+                html += '</tr>';
+            }}
+            html += '</tbody></table>';
+            tableContainer.innerHTML = html;
+        }}
+
+        function updateDonut() {{
+            const langDict = translations[currentLang];
+            const m = donutMesSelect.value;
+            const a = donutAnoSelect.value;
+            const p = donutPaisSelect.value;
+            
+            const currentMonthData = masterData[m];
+            if(!currentMonthData || !currentMonthData.donut_cube[a] || !currentMonthData.donut_cube[a][p]) return;
+            
+            const dData = currentMonthData.donut_cube[a][p];
+
+            let activeValues = [];
+            let hoverTemplate = "";
+            
+            if (currentDonutMetric === 'fob') {{
+                activeValues = dData.fob;
+                hoverTemplate = "<b>%{{label}}</b><br>US$ %{{value:,.0f}} <br>(%{{percent}})<extra></extra>";
+            }} else if (currentDonutMetric === 'cif') {{
+                activeValues = dData.cif;
+                hoverTemplate = "<b>%{{label}}</b><br>US$ %{{value:,.0f}} <br>(%{{percent}})<extra></extra>";
+            }} else {{
+                activeValues = dData.qty;
+                hoverTemplate = `<b>%{{label}}</b><br>${{langDict.hover_qty}}: %{{value:,.0f}} <br>(%{{percent}})<extra></extra>`;
+            }}
+
+            const trace = {{
+                labels: dData.labels,
+                values: activeValues,
+                type: 'pie',
+                hole: 0.45,
+                textinfo: 'percent+label',
+                hovertemplate: hoverTemplate,
+                marker: {{
+                    colors: ['#2c3e50', '#CC0000', '#18bc9c', '#f39c12', '#8e44ad']
+                }}
+            }};
+
+            const layout = {{
+                margin: {{t: 10, b: 20, l: 10, r: 10}},
+                showlegend: true,
+                legend: {{ orientation: "h", yanchor: "bottom", y: -0.2, xanchor: "center", x: 0.5 }}
+            }};
+
+            Plotly.react(chartHpId, [trace], layout);
+        }}
+
+        document.querySelectorAll('.lang-btn').forEach(btn => {{
+            btn.addEventListener('click', function() {{
+                const lang = this.getAttribute('data-lang');
+                document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                translatePage(lang);
+            }});
+        }});
+
+        const tableBtns = document.querySelectorAll('#table-btn-group .metric-btn');
+        tableBtns.forEach(btn => {{
+            btn.addEventListener('click', function() {{
+                tableBtns.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentTableMetric = this.getAttribute('data-metric');
+                if(masterData[filterSelect.value]) renderHtmlTable(masterData[filterSelect.value]);
+            }});
+        }});
+
+        const donutBtns = document.querySelectorAll('.donut-metric-btn');
+        donutBtns.forEach(btn => {{
+            btn.addEventListener('click', function() {{
+                donutBtns.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentDonutMetric = this.getAttribute('data-metric');
+                updateDonut();
+            }});
+        }});
+
+        filterSelect.addEventListener('change', function() {{
+            try {{
+                const newData = masterData[this.value];
+                if (!newData) return;
+
+                renderHtmlTable(newData);
+                document.getElementById('kpi-fob-value').textContent = newData.kpis.fob;
+                document.getElementById('kpi-qty-value').textContent = newData.kpis.qty;
+                document.getElementById('kpi-paises-value').textContent = newData.kpis.paises;
+                
+                const langDict = translations[currentLang];
+                const chart1Layout = JSON.parse(JSON.stringify(newData.chart1.layout)); // Deep copy
+                chart1Layout.title.text = langDict.chart1_title;
+                chart1Layout.updatemenus[0].buttons[0].label = langDict.fob_value;
+                chart1Layout.updatemenus[0].buttons[0].args[1]['yaxis.title'] = langDict.total_fob_value;
+                chart1Layout.updatemenus[0].buttons[1].label = langDict.cif_value;
+                chart1Layout.updatemenus[0].buttons[1].args[1]['yaxis.title'] = langDict.total_cif_value;
+                chart1Layout.updatemenus[0].buttons[2].label = langDict.quantity;
+                chart1Layout.updatemenus[0].buttons[2].args[1]['yaxis.title'] = langDict.total_quantity_axis;
+                
+                const visibleTraceIndex = newData.chart1.data.findIndex(trace => trace.visible === true);
+                const yaxisTitleKey = visibleTraceIndex === 0 ? 'total_fob_value' : (visibleTraceIndex === 1 ? 'total_cif_value' : 'total_quantity_axis');
+                chart1Layout.yaxis.title.text = langDict[yaxisTitleKey] || langDict.total_fob_value;
+                Plotly.react(chart1Id, newData.chart1.data, chart1Layout);
+                
+            }} catch (e) {{
+                console.error("Erro ao atualizar dashboard:", e);
+            }}
+        }});
+
+        donutMesSelect.addEventListener('change', updateDonut);
+        donutAnoSelect.addEventListener('change', updateDonut);
+        donutPaisSelect.addEventListener('change', updateDonut);
+
+        function initializeDashboard() {{
+            const initialData = masterData['total'];
+            if (!initialData) {{
+                console.error("Dados iniciais ('total') não encontrados.");
+                return;
+            }}
+            renderHtmlTable(initialData);
+            document.getElementById('kpi-fob-value').textContent = initialData.kpis.fob;
+            document.getElementById('kpi-qty-value').textContent = initialData.kpis.qty;
+            document.getElementById('kpi-paises-value').textContent = initialData.kpis.paises;
+            
+            donutMesSelect.value = 'total';
+            updateDonut();
+        }}
+
+        initializeDashboard();
+
+    </script>
+</body>
+</html>
