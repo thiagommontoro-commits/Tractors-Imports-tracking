@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 # Importa as funções dos novos módulos
 from extracao import extrair_dados_comex
-from dashboard import gerar_dashboard
+from gerar_dashboard import gerar_dashboard
 
 # ==============================================================================
 # ORQUESTRADOR PRINCIPAL
