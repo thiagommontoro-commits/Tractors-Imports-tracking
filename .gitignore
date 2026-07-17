@@ -1,0 +1,13 @@
+# Ignorar o ambiente virtual do Python
+/venv/
+
+# Ignorar arquivos de cache do Python
+__pycache__/
+*.pyc
+
+# Ignorar arquivos de ambiente (contêm segredos)
+.env
+
+# Ignorar os arquivos de dados gerados (o GitHub Actions vai gerar a versão dele)
+*.xlsx
+*.csv
