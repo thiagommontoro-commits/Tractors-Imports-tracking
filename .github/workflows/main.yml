@@ -1,50 +1,39 @@
-name: Gerar Dashboard de Importações
+name: Atualizar Dados de Importação
 
 on:
-  # Gatilho 1: Roda sempre que houver uma alteração na branch 'main'
-  push:
-    branches:
-      - main
-
-  # Gatilho 2: Permite que você rode a automação manualmente pela aba "Actions" do GitHub
+  # Permite que você rode este fluxo de trabalho manualmente pela aba "Actions" do GitHub
   workflow_dispatch:
 
-  # Gatilho 3: Agendamento para rodar toda segunda-feira às 08:00 UTC
+  # Roda automaticamente toda segunda-feira às 08:00 UTC (05:00 no horário de Brasília)
   schedule:
-    # A sintaxe cron '0 8 * * 1' significa: 0 minutos, 8 horas, todo dia do mês, todo mês, na segunda-feira.
     - cron: '0 8 * * 1'
 
-# Permite que a automação salve os arquivos gerados (dashboard.html e o .xlsx) de volta no repositório
-permissions:
-  contents: write
-
 jobs:
-  build-and-deploy:
+  update-data:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Baixar o código do repositório
+      # 1. Baixa o código do seu repositório para o ambiente de execução
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 2. Configurar o ambiente Python
+      # 2. Configura o ambiente Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.10'
 
-      - name: 3. Instalar as bibliotecas necessárias
+      # 3. Instala as dependências listadas no requirements.txt
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: 4. Executar o script principal (Extração + Geração do Dashboard)
-        run: python Deixa.py
+      # 4. Executa o script principal para baixar os dados e criar o Excel
+      - name: Run data extraction script
+        run: python Main.py
 
-      - name: 4.1. (DEBUG) Listar arquivos no diretório
-        run: ls -R
-
-      - name: 5. Salvar os arquivos gerados no repositório
-        run: |
-          git config --global user.name 'GitHub Actions Bot'
-          git config --global user.email 'actions@github.com'
-          git add index.html "Imports database_*.xlsx"
-          git commit -m "📊 [Bot] Atualiza dashboard e base de dados" || echo "Nenhuma alteração para commitar"
-          git push
+      # 5. Faz o commit do novo arquivo Excel gerado de volta para o seu repositório
+      - name: Commit and push if it changed
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: Atualiza base de dados de importação'
