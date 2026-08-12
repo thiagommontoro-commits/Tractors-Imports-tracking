@@ -1,0 +1,4 @@
+# O Excel é gerado com data/hora no nome a cada rodada — não versionar (evita ruído).
+*.xlsx
+__pycache__/
+*.pyc
