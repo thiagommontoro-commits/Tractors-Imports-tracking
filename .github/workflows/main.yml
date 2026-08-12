@@ -1,14 +1,11 @@
 name: Atualizar Dashboard Comex Stat
 
-# Quando roda:
 on:
   schedule:
     # Toda segunda-feira às 09:00 UTC (06:00 no horário de Brasília).
-    # Sintaxe cron: min hora dia-do-mês mês dia-da-semana
     - cron: "0 9 * * 1"
   workflow_dispatch:   # permite rodar manualmente pelo botão "Run workflow"
 
-# Permite que o robô faça commit/push do index.html atualizado
 permissions:
   contents: write
 
@@ -16,46 +13,49 @@ jobs:
   atualizar:
     runs-on: ubuntu-latest
     steps:
-      # 1) Baixa o conteúdo do repositório
       - name: Checkout do repositório
         uses: actions/checkout@v4
 
-      # 2) Prepara o Python
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # 3) Instala as dependências
       - name: Instalar dependências
         run: pip install -r requirements.txt
 
-      # 4) Roda o script -> gera o index.html na raiz do repositório
+      # Roda o script e GARANTE que o index.html fique na raiz do repositório,
+      # não importa onde o script tenha salvo (raiz ou alguma subpasta).
       - name: Gerar dashboard (puxar dados do Comex Stat)
         env:
-          COMEXSTAT_OUTDIR: ${{ github.workspace }}   # salva na raiz do repo
-        run: python gerar_dashboard.py
+          COMEXSTAT_OUTDIR: ${{ github.workspace }}   # pede para salvar na raiz
+        run: |
+          set -e
+          echo "=== Rodando o script ==="
+          python gerar_dashboard.py
 
-      # 5) Verifica se HOUVE ATUALIZAÇÃO de dados (ignora o horário de geração)
-      #    - Se os dados forem iguais aos da última vez -> não faz nada.
-      #    - Se mudaram -> commita e publica.
+          echo "=== Procurando o index.html gerado ==="
+          if [ -f index.html ]; then
+            echo "OK: index.html já está na raiz."
+          else
+            # Procura o index.html em qualquer subpasta (ignora a pasta .git)
+            FOUND="$(find . -name 'index.html' -not -path './.git/*' | head -1 || true)"
+            if [ -n "$FOUND" ]; then
+              echo "Encontrado em: $FOUND — copiando para a raiz."
+              cp "$FOUND" ./index.html
+            else
+              echo "❌ ERRO: nenhum index.html foi gerado."
+              echo "Isso normalmente significa que a API do Comex Stat não retornou dados."
+              echo "--- Arquivos gerados nesta rodada (para diagnóstico): ---"
+              find . -not -path './.git/*' -newer requirements.txt -type f | head -50
+              exit 1
+            fi
+          fi
+
       - name: Publicar se houver atualização
         run: |
           set -e
-          # Regex neutraliza o campo "gerado_em" (aceita com ou sem espaço após ":")
+          # Neutraliza o campo de data/hora (aceita com ou sem espaço após ":")
           NEUTRO='s/"gerado_em": *"[^"]*"/"gerado_em":""/'
-          # Versão anterior do index.html (se existir), com o timestamp neutralizado
           git show HEAD:index.html 2>/dev/null | sed "$NEUTRO" > /tmp/old.html || echo "" > /tmp/old.html
-          # Versão nova, também com timestamp neutralizado
           sed "$NEUTRO" index.html > /tmp/new.html
-
-          if diff -q /tmp/old.html /tmp/new.html >/dev/null 2>&1; then
-            echo "✅ Sem novidades: os dados do Comex Stat não mudaram desde a última rodada."
-          else
-            echo "🆕 Atualização detectada! Publicando novo dashboard..."
-            git config user.name  "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add index.html
-            git commit -m "Atualiza dashboard Comex Stat (automático) [skip ci]"
-            git push
-          fi
