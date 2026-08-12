@@ -1,44 +1,61 @@
-name: Atualizar Dados de Importação
+name: Atualizar Dashboard Comex Stat
 
+# Quando roda:
 on:
-  # Permite que você rode este fluxo de trabalho manualmente pela aba "Actions" do GitHub
-  workflow_dispatch:
-
-  # Roda automaticamente toda segunda-feira às 08:00 UTC (05:00 no horário de Brasília)
   schedule:
-    - cron: '0 8 * * 1'
+    # Toda segunda-feira às 09:00 UTC (06:00 no horário de Brasília).
+    # Sintaxe cron: min hora dia-do-mês mês dia-da-semana
+    - cron: "0 9 * * 1"
+  workflow_dispatch:   # permite rodar manualmente pelo botão "Run workflow"
 
-# Permite que a automação salve os arquivos gerados (index.html e o .xlsx) de volta no repositório.
+# Permite que o robô faça commit/push do index.html atualizado
 permissions:
   contents: write
 
 jobs:
-  update-data:
+  atualizar:
     runs-on: ubuntu-latest
     steps:
-      # 1. Baixa o código do seu repositório para o ambiente de execução
-      - name: Checkout repository
+      # 1) Baixa o conteúdo do repositório
+      - name: Checkout do repositório
         uses: actions/checkout@v4
 
-      # 2. Configura o ambiente Python
-      - name: Set up Python
+      # 2) Prepara o Python
+      - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.11"
 
-      # 3. Instala as dependências listadas no requirements.txt
-      - name: Install dependencies
+      # 3) Instala as dependências
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      # 4) Roda o script -> gera o index.html na raiz do repositório
+      - name: Gerar dashboard (puxar dados do Comex Stat)
+        env:
+          COMEXSTAT_OUTDIR: ${{ github.workspace }}   # salva na raiz do repo
+        run: python gerar_dashboard.py
+
+      # 5) Verifica se HOUVE ATUALIZAÇÃO de dados (ignora o horário de geração)
+      #    - Se os dados forem iguais aos da última vez -> não faz nada.
+      #    - Se mudaram -> commita e publica.
+      - name: Publicar se houver atualização
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          set -e
+          # Regex neutraliza o campo "gerado_em" (aceita com ou sem espaço após ":")
+          NEUTRO='s/"gerado_em": *"[^"]*"/"gerado_em":""/'
+          # Versão anterior do index.html (se existir), com o timestamp neutralizado
+          git show HEAD:index.html 2>/dev/null | sed "$NEUTRO" > /tmp/old.html || echo "" > /tmp/old.html
+          # Versão nova, também com timestamp neutralizado
+          sed "$NEUTRO" index.html > /tmp/new.html
 
-      # 4. Executa o script principal para baixar os dados e criar o Excel
-      - name: Run data extraction script
-        run: python Main.py
-
-      # 5. Faz o commit do novo arquivo Excel gerado de volta para o seu repositório
-      - name: Commit and push if it changed
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: 'chore: Atualiza base de dados de importação'
-          commit_author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          if diff -q /tmp/old.html /tmp/new.html >/dev/null 2>&1; then
+            echo "✅ Sem novidades: os dados do Comex Stat não mudaram desde a última rodada."
+          else
+            echo "🆕 Atualização detectada! Publicando novo dashboard..."
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add index.html
+            git commit -m "Atualiza dashboard Comex Stat (automático) [skip ci]"
+            git push
+          fi
