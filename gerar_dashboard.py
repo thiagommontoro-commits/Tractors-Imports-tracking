@@ -80,26 +80,68 @@ def resolver_pasta_destino():
         if c.exists(): return c
     fb=home/"Desktop"; fb.mkdir(parents=True,exist_ok=True); return fb
 
-def consultar_importacao_tratores(period_from,period_to,ncms=None,language="pt",max_retries=5,timeout=180):
-    if ncms is None: ncms=NCMS_TRATORES
+def _buscar_registros(period_from,period_to,ncms,language="pt",max_retries=6,timeout=180):
+    """Faz UMA consulta ao endpoint /general e devolve a lista bruta de registros.
+    Trata rate limit (HTTP 429) respeitando o cabeçalho Retry-After, com backoff
+    exponencial + jitter. Usa verify=False (a API do MDIC exige, por causa do
+    certificado ICP-Brasil). Levanta exceção se esgotar as tentativas."""
+    import random as _rnd
     payload={"flow":"import","monthDetail":True,"period":{"from":period_from,"to":period_to},
         "filters":[{"filter":"ncm","values":[int(n) for n in ncms]}],"details":["ncm","country"],
         "metrics":["metricStatistic","metricFOB","metricCIF"]}
     url=f"{BASE_URL}?language={language}"
     for attempt in range(1,max_retries+1):
         try:
-            resp=requests.post(url,headers=HEADERS,data=json.dumps(payload),timeout=timeout)
+            resp=requests.post(url,headers=HEADERS,data=json.dumps(payload),timeout=timeout,verify=False)
+            if resp.status_code==429:
+                # Rate limit: respeita Retry-After se vier; senão backoff generoso + jitter
+                ra=resp.headers.get("Retry-After")
+                espera=int(ra) if (ra and str(ra).isdigit()) else min(15*attempt,90)
+                espera+=_rnd.uniform(0,5)
+                print(f"  [429 rate limit {attempt}/{max_retries}] Aguardando {espera:.0f}s...")
+                time.sleep(espera); continue
             resp.raise_for_status(); body=resp.json()
             if not body.get("success",False): raise RuntimeError(f"API erro: {body.get('message')}")
-            df=pd.DataFrame(body.get("data",{}).get("list",[]))
-            print(f"[OK] {len(df)} registros ({period_from} a {period_to})."); return _preparar(df)
-        except requests.exceptions.SSLError:
-            print("[aviso] SSL - tentando sem verificação...")
-            resp=requests.post(url,headers=HEADERS,data=json.dumps(payload),timeout=timeout,verify=False)
-            resp.raise_for_status(); return _preparar(pd.DataFrame(resp.json().get("data",{}).get("list",[])))
+            return body.get("data",{}).get("list",[])
         except (requests.exceptions.RequestException,ValueError) as e:
-            espera=2**attempt; print(f"[tentativa {attempt}/{max_retries}] {e}. Aguardando {espera}s..."); time.sleep(espera)
-    raise RuntimeError("Falha ao obter dados.")
+            espera=min(2**attempt,60)+_rnd.uniform(0,3)
+            print(f"  [tentativa {attempt}/{max_retries}] {e}. Aguardando {espera:.0f}s...")
+            time.sleep(espera)
+    raise RuntimeError(f"Falha ao obter dados de {period_from} a {period_to} após {max_retries} tentativas.")
+
+
+def consultar_importacao_tratores(period_from,period_to,ncms=None,language="pt",max_retries=6,timeout=180):
+    """Obtém os dados de importação. Estratégia resiliente ao rate limit (429):
+      1) Tenta a consulta completa (todos os NCMs, período inteiro) de uma vez.
+      2) Se falhar, fatia a consulta POR ANO — requisições menores e ESPAÇADAS
+         (pausa entre elas) passam muito melhor pelo limite de taxa da API."""
+    if ncms is None: ncms=NCMS_TRATORES
+
+    # ---- Tentativa 1: tudo de uma vez ----
+    try:
+        print(f"[1/2] Consulta única ({period_from} a {period_to})...")
+        regs=_buscar_registros(period_from,period_to,ncms,language,max_retries,timeout)
+        print(f"[OK] {len(regs)} registros ({period_from} a {period_to}).")
+        return _preparar(pd.DataFrame(regs))
+    except Exception as e:
+        print(f"[aviso] Consulta única falhou ({e}). Fatiando por ANO (mais gentil com a API)...")
+
+    # ---- Tentativa 2 (fallback): ano a ano, com pausa entre as requisições ----
+    ano_ini=int(period_from[:4]); ano_fim=int(period_to[:4]); todos=[]
+    for i,ano in enumerate(range(ano_ini,ano_fim+1)):
+        print(f"[2/2] Ano {ano}...")
+        try:
+            regs=_buscar_registros(f"{ano}-01",f"{ano}-12",ncms,language,max_retries,timeout)
+            print(f"  [OK] {len(regs)} registros em {ano}.")
+            todos.extend(regs)
+        except Exception as e:
+            print(f"  [ERRO] Ano {ano} falhou: {e}. Seguindo com os demais.")
+        # Pausa entre anos para não estourar o rate limit (menos no último)
+        if ano<ano_fim:
+            time.sleep(8)
+    if not todos:
+        raise RuntimeError("Falha ao obter dados (todos os anos falharam).")
+    return _preparar(pd.DataFrame(todos))
 
 def _preparar(df):
     if df.empty: return df
