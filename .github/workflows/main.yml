@@ -24,8 +24,7 @@ jobs:
       - name: Instalar dependências
         run: pip install -r requirements.txt
 
-      # Roda o script e GARANTE que o index.html fique na raiz do repositório,
-      # não importa onde o script tenha salvo (raiz ou alguma subpasta).
+      # Roda o script e GARANTE que o index.html fique na raiz do repositório.
       - name: Gerar dashboard (puxar dados do Comex Stat)
         env:
           COMEXSTAT_OUTDIR: ${{ github.workspace }}   # pede para salvar na raiz
@@ -36,26 +35,48 @@ jobs:
 
           echo "=== Procurando o index.html gerado ==="
           if [ -f index.html ]; then
-            echo "OK: index.html já está na raiz."
+            echo "OK: index.html está na raiz."
           else
-            # Procura o index.html em qualquer subpasta (ignora a pasta .git)
             FOUND="$(find . -name 'index.html' -not -path './.git/*' | head -1 || true)"
             if [ -n "$FOUND" ]; then
               echo "Encontrado em: $FOUND — copiando para a raiz."
               cp "$FOUND" ./index.html
             else
               echo "❌ ERRO: nenhum index.html foi gerado."
-              echo "Isso normalmente significa que a API do Comex Stat não retornou dados."
-              echo "--- Arquivos gerados nesta rodada (para diagnóstico): ---"
-              find . -not -path './.git/*' -newer requirements.txt -type f | head -50
               exit 1
             fi
           fi
 
+      # Publica APENAS se os dados mudaram (ignora só o horário de geração).
+      # Usa comparação por hash md5 — robusta e com log claro para diagnóstico.
       - name: Publicar se houver atualização
         run: |
           set -e
-          # Neutraliza o campo de data/hora (aceita com ou sem espaço após ":")
-          NEUTRO='s/"gerado_em": *"[^"]*"/"gerado_em":""/'
-          git show HEAD:index.html 2>/dev/null | sed "$NEUTRO" > /tmp/old.html || echo "" > /tmp/old.html
-          sed "$NEUTRO" index.html > /tmp/new.html
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Neutraliza o campo "gerado_em" (que muda a cada rodada) antes de comparar.
+          NEUTRO='s/"gerado_em":[[:space:]]*"[^"]*"/"gerado_em":""/g'
+
+          # Hash da versão JÁ PUBLICADA (a que está no último commit).
+          if git cat-file -e HEAD:index.html 2>/dev/null; then
+            OLD_HASH="$(git show HEAD:index.html | sed "$NEUTRO" | md5sum | cut -d' ' -f1)"
+          else
+            OLD_HASH="nenhum-arquivo-anterior"
+          fi
+
+          # Hash da versão RECÉM-GERADA (a que está no disco agora).
+          NEW_HASH="$(sed "$NEUTRO" index.html | md5sum | cut -d' ' -f1)"
+
+          echo "Hash publicado : $OLD_HASH"
+          echo "Hash novo      : $NEW_HASH"
+
+          if [ "$OLD_HASH" = "$NEW_HASH" ]; then
+            echo "✅ Sem novidades: os dados não mudaram desde a última publicação."
+          else
+            echo "🆕 Dados novos detectados! Publicando o dashboard atualizado..."
+            git add index.html
+            git commit -m "Atualiza dashboard Comex Stat (automatico) [skip ci]"
+            git push
+            echo "✅ Publicado com sucesso."
+          fi
