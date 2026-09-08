@@ -65,6 +65,11 @@ def obter_ultimo_periodo(language="pt"):
         p=f"{ano:04d}-{mes:02d}"; print(f"[aviso] Data via API falhou ({e}). Estimando: {p}"); return p
 
 def resolver_pasta_destino():
+    # No GitHub Actions o workflow define COMEXSTAT_OUTDIR (raiz do repositório).
+    # No seu PC essa variável não existe, então ele ignora e usa PASTA_DESTINO.
+    env=os.environ.get("COMEXSTAT_OUTDIR")
+    if env:
+        p=Path(env); p.mkdir(parents=True,exist_ok=True); return p
     if PASTA_DESTINO:
         p=Path(PASTA_DESTINO)
         try: p.mkdir(parents=True,exist_ok=True); return p
@@ -333,7 +338,6 @@ const COLS=[{k:"ano",i:"th_year",ctr:true},{k:"mes",i:"th_month",ctr:true},{k:"p
 const MET_DEF=[{k:"quantidade_un",i:"th_qty",fmt:"int",kpi:"k_units"},{k:"valor_fob_usd",i:"th_fob",fmt:"usd",kpi:"k_fob"},{k:"valor_cif_usd",i:"th_cif",fmt:"usd",kpi:"k_cif"},{k:"preco_medio_fob_un",i:"th_avg",fmt:"usd",kpi:"k_avg"}];
 function varSel(){return (document.getElementById("fVar")||{}).value||"all";}
 function metsAtivas(){const v=varSel();return v==="all"?MET_DEF.slice():MET_DEF.filter(m=>m.k===v);}
-// Métrica que a ROSCA usa: se "Todas" ou "Preço Médio" -> FOB; senão a própria escolhida
 function metRosca(){const v=varSel();const m=MET_DEF.find(x=>x.k===v);return (v==="all"||v==="preco_medio_fob_un"||!m)?MET_DEF[1]:m;}
 function fmtMet(m,val){return m.fmt==="usd"?fUsd(val):fInt(val);}
 function fmtMetC(m,val){return m.fmt==="usd"?fUsdC(val):fInt(val);}
@@ -370,7 +374,6 @@ const ultimo=anos[anos.length-1],anterior=anos[anos.length-2];const maxMes=FILTR
 const vv=varSel();const kVar=(vv==="quantidade_un"||vv==="valor_cif_usd")?vv:"valor_fob_usd";const metVar=MET_DEF.find(m=>m.k===kVar);
 const varYtd=(p,y)=>FILTRADO.filter(d=>d.pais===p&&d.ano===y&&d.mes<=maxMes).reduce((s,d)=>s+(d[kVar]||0),0);
 let arr=Object.keys(M).map(p=>({pais:p,cel:M[p],v1:varYtd(p,ultimo),v0:anterior?varYtd(p,anterior):0}));
-// Ano usado para ordenar por quantidade (padrão = último ano disponível, ex.: 2026)
 const anoOrd=(paisSortAno&&anos.includes(paisSortAno))?paisSortAno:ultimo;
 const qtdAno=r=>((r.cel[anoOrd]||{}).q)||0;
 arr.sort((a,b)=>paisSort.col==="pais"?paisLabel(a.pais).localeCompare(paisLabel(b.pais),loc())*paisSort.dir:(qtdAno(a)-qtdAno(b))*paisSort.dir);
@@ -393,18 +396,15 @@ charts.paisSeg=new Chart(chPaisSeg,{type:"doughnut",data:{labels:ss.map(segLabel
 segStats.innerHTML=ss.map(s=>{const v=ps[s],pc=tot?(v/tot*100):0;return '<div class="row"><span class="nm"><span class="dot" style="background:'+CORES_SEG[s]+'"></span>'+segLabel(s)+'</span><span><span class="vl">'+fmtMetC(met,v)+'</span> <span class="pc">'+pc.toFixed(1)+'%</span></span></div>';}).join("");
 const nome=paisSel?paisLabel(paisSel):t("all_countries");segTitle.textContent=t("c_seg_of")+" "+nome;
 segChip.innerHTML=paisSel?'<span class="chip" onclick="selPais(\''+paisSel.replace(/'/g,"\\'")+'\')">'+paisLabel(paisSel)+' <span>✕</span></span>':"";
-// Rodapé: se métrica for FOB (padrão) mostra preço médio; senão mostra o total da métrica
 const vv=varSel();
 if(vv==="all"||vv==="valor_fob_usd"||vv==="preco_medio_fob_un"){const q=soma(base,"quantidade_un"),f=soma(base,"valor_fob_usd");segAvg.textContent=t("avg_txt").replace("{c}",nome).replace("{v}",fUsd(q?f/q:0));}
 else{const totV=soma(base,met.k);segAvg.textContent=t("tot_txt").replace("{lbl}",t(met.i)).replace("{c}",nome).replace("{v}",fmtMetC(met,totV));}
 renderSegFilters(met);}
 function renderSegFilters(met){
-// Resume os filtros ATIVOS que impactam esta rosca: país, anos, meses acumulados, variável
 const anos=[...new Set(FILTRADO.map(d=>d.ano))].filter(v=>!isNaN(v)).sort((a,b)=>a-b);
 const meses=[...new Set(FILTRADO.map(d=>d.mes))].filter(v=>!isNaN(v)).sort((a,b)=>a-b);
 const paisTxt=paisSel?paisLabel(paisSel):(mSel("fPais").length?mSel("fPais").map(paisLabel).join(", "):t("all_countries"));
 const anoTxt=anos.length?(anos.length===1?anos[0]:anos[0]+" – "+anos[anos.length-1]):"—";
-// Meses: se forem contíguos a partir de Jan, mostra "Jan → X" (acumulado); senão lista os selecionados
 let mesTxt;
 const contig=meses.length&&meses[0]===1&&meses.every((m,i)=>m===i+1);
 if(!meses.length)mesTxt="—";
